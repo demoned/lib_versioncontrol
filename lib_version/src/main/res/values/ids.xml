@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="lib_version_dialog_commit" type="id" />
+    <item name="lib_app_download_progress" type="id" />
     <item name="lib_failed_dialog_retry" type="id" />
     <item name="lib_failed_dialog_cancel" type="id" />
     <item name="lib_version_dialog_cancel" type="id" />

@@ -11,29 +11,27 @@ import com.bojun.version.AllenVersionChecker;
 import com.bojun.version.R;
 import com.bojun.version.builder.DownloadBuilder;
 import com.bojun.version.builder.UIData;
+import com.bojun.version.core.http.AllenHttp;
 import com.bojun.version.eventbus.AllenEventType;
+import com.bojun.version.eventbus.CommonEvent;
 import com.bojun.version.utils.ALog;
 import com.bojun.version.utils.AllenEventBusUtil;
 import com.bojun.version.utils.AppUtils;
+
+import org.greenrobot.eventbus.EventBus;
 
 import java.io.File;
 
 public class UIActivity extends AllenBaseActivity implements DialogInterface.OnCancelListener {
     private Dialog versionDialog;
     private boolean isDestroy = false;
+    private View view;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         ALog.e("version activity create");
         showVersionDialog();
-    }
-
-    @Override
-    protected void onDestroy() {
-        isDestroy = true;
-        ALog.e("version activity destroy");
-        super.onDestroy();
     }
 
     @Override
@@ -72,13 +70,42 @@ public class UIActivity extends AllenBaseActivity implements DialogInterface.OnC
     }
 
     @Override
+    public void receiveEvent(CommonEvent commonEvent) {
+        super.receiveEvent(commonEvent);
+        switch (commonEvent.getEventType()) {
+            case AllenEventType.UPDATE_DOWNLOADING_PROGRESS:
+                int progress = (int) commonEvent.getData();
+                updateProgress(progress);
+                break;
+            case AllenEventType.DOWNLOAD_COMPLETE:
+                onCancel(true);
+                break;
+            case AllenEventType.CLOSE_DOWNLOADING_ACTIVITY:
+                destroy();
+                EventBus.getDefault().removeStickyEvent(commonEvent);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void updateProgress(int progress) {
+        if (!isDestroy) {
+            NumberProgressBar numberProgressBar = versionDialog.findViewById(R.id.lib_app_download_progress);
+            view.setVisibility(View.GONE);
+            numberProgressBar.setVisibility(View.VISIBLE);
+            numberProgressBar.setProgress(progress);
+        }
+    }
+
+    @Override
     public void showCustomDialog() {
         if (getVersionBuilder() != null) {
             ALog.e("show customization dialog");
             versionDialog = getVersionBuilder().getCustomVersionDialogListener().getCustomVersionDialog(this, getVersionBuilder().getVersionBundle());
             try {
                 //自定义dialog，commit button 必须存在
-                final View view = versionDialog.findViewById(R.id.lib_version_dialog_commit);
+                view = versionDialog.findViewById(R.id.lib_version_dialog_commit);
                 if (view != null) {
                     ALog.e("view not null");
 
@@ -127,11 +154,13 @@ public class UIActivity extends AllenBaseActivity implements DialogInterface.OnC
         super.onPause();
         if (versionDialog != null && versionDialog.isShowing())
             versionDialog.dismiss();
+        isDestroy = true;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        isDestroy = false;
         if (versionDialog != null && !versionDialog.isShowing())
             versionDialog.show();
     }
@@ -161,6 +190,22 @@ public class UIActivity extends AllenBaseActivity implements DialogInterface.OnC
         cancelHandler();
         checkForceUpdate();
         AllenVersionChecker.getInstance().cancelAllMission();
+        finish();
+    }
+
+    public void onCancel(boolean isDownloadCompleted) {
+        if (!isDownloadCompleted) {
+            AllenHttp.getHttpClient().dispatcher().cancelAll();
+            cancelHandler();
+            checkForceUpdate();
+        }
+        finish();
+    }
+
+    private void destroy() {
+        ALog.e("loading activity destroy");
+        if (versionDialog != null && versionDialog.isShowing())
+            versionDialog.dismiss();
         finish();
     }
 }
